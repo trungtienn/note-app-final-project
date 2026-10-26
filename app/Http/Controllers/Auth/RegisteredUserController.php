@@ -31,19 +31,26 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'display_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         $user = User::create([
-            'name' => $request->name,
+            'display_name' => $request->display_name,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => Hash::make($request->password), // Mã hóa bcrypt
+            'preferences' => [
+                'theme' => 'light',
+                'font_size' => 'base',
+                'note_color' => '#ffffff',
+            ],
         ]);
 
+        // Gửi email kích hoạt tài khoản
         event(new Registered($user));
 
+        // Tự động đăng nhập ngay lập tức sau khi đăng ký
         Auth::login($user);
 
         return redirect(route('dashboard', absolute: false));
