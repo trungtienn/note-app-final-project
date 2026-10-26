@@ -22,6 +22,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/notes/auto-save', [NoteController::class, 'autoSave'])->name('notes.autoSave');
     Route::post('/api/notes/{note}/toggle-pin', [NoteController::class, 'togglePin'])->name('notes.togglePin');
     Route::delete('/api/notes/{note}', [NoteController::class, 'destroy'])->name('notes.destroy');
+    Route::post('/api/notes/{note}/attachments', [NoteController::class, 'uploadAttachments'])->name('notes.attachments.upload');
+    Route::delete('/api/attachments/{attachment}', [NoteController::class, 'deleteAttachment'])->name('attachments.destroy');
 });
 
 require __DIR__.'/auth.php';

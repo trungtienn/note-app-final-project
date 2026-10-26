@@ -80,6 +80,19 @@
                 <textarea id="editor-content" rows="8" placeholder="Nhập nội dung ghi chú..." oninput="triggerAutoSave()"
                     class="w-full border-0 bg-transparent px-0 py-2 focus:ring-0 text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none"></textarea>
             </div>
+            
+            <div id="attachments-section" class="mb-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tệp đính kèm (Ảnh / Video / File)</span>
+                    <label id="btn-add-attachment" class="cursor-pointer inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                        <span>Thêm tệp</span>
+                        <input type="file" id="attachment-file-input" multiple class="hidden" onchange="handleUploadAttachments(event)">
+                    </label>
+                </div>
+                <!-- Vùng hiển thị xem trước ảnh, video và file -->
+                <div id="attachments-list" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+            </div>
 
             <!-- Thanh trạng thái chân Modal -->
             <div class="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500">
@@ -168,6 +181,7 @@
                 
                 card.onclick = (e) => {
                     if (e.target.closest('button')) return; // Không mở modal nếu bấm nút xóa/pin
+                    const freshNote = allNotes.find(n => n.id === note.id) || note;
                     openNoteModal(note);
                 };
 
@@ -224,21 +238,30 @@
             const contentField = document.getElementById('editor-content');
             const titleStatus = document.getElementById('modal-title-status');
             const saveStatus = document.getElementById('modal-auto-save-status');
+            const attachmentsList = document.getElementById('attachments-list');
+            const btnAddAttachment = document.getElementById('btn-add-attachment');
 
             saveStatus.innerText = '';
+            attachmentsList.innerHTML = '';
 
             if (note) {
-                // Đang sửa
                 idField.value = note.id;
                 titleField.value = note.title;
                 contentField.value = note.content || '';
                 titleStatus.innerText = 'Chỉnh sửa ghi chú';
+                btnAddAttachment.classList.remove('opacity-50', 'pointer-events-none');
+                
+                // Hiển thị danh sách file nếu có
+                if (note.attachments && note.attachments.length > 0) {
+                    note.attachments.forEach(att => renderAttachmentItem(att));
+                }
             } else {
-                // Đang tạo mới
                 idField.value = '';
                 titleField.value = '';
                 contentField.value = '';
                 titleStatus.innerText = 'Tạo ghi chú mới';
+                // Chưa có ID note thì nhắc người dùng nhập tiêu đề để auto-save trước khi đính kèm file
+                btnAddAttachment.classList.add('opacity-50', 'pointer-events-none');
             }
 
             modal.classList.remove('hidden');
@@ -301,6 +324,7 @@
                 const data = await res.json();
                 if (data.success && data.note) {
                     document.getElementById('editor-note-id').value = data.note.id; // Gán ID để chuyển sang chế độ cập nhật
+                    document.getElementById('btn-add-attachment').classList.remove('opacity-50', 'pointer-events-none');
                     saveStatus.innerText = '✓ Đã tự động lưu';
                 } else {
                     saveStatus.innerText = 'Lưu thất bại';
@@ -348,6 +372,102 @@
                 console.error('Lỗi xóa note:', err);
             }
         };
+
+        async function handleUploadAttachments(event) {
+            const files = event.target.files;
+            const noteId = document.getElementById('editor-note-id').value;
+
+            if (!noteId) {
+                alert('Vui lòng nhập tiêu đề ghi chú để hệ thống tự lưu trước khi tải tệp!');
+                return;
+            }
+            if (files.length === 0) return;
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files[]', files[i]);
+            }
+
+            const saveStatus = document.getElementById('modal-auto-save-status');
+            saveStatus.innerText = 'Đang tải tệp lên...';
+
+            try {
+                const res = await fetch(`/api/notes/${noteId}/attachments`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: formData,
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    saveStatus.innerText = '✓ Đã tải tệp lên';
+                    data.attachments.forEach(att => renderAttachmentItem(att));
+                    loadNotes(); // Cập nhật lại danh sách bên ngoài
+                } else {
+                    saveStatus.innerText = 'Lỗi tải tệp';
+                }
+            } catch (err) {
+                console.error(err);
+                saveStatus.innerText = 'Lỗi kết nối tải tệp';
+            } finally {
+                event.target.value = ''; // Reset input file
+            }
+        }
+
+        function renderAttachmentItem(att) {
+            const container = document.getElementById('attachments-list');
+            const item = document.createElement('div');
+            item.id = `attachment-${att.id}`;
+            item.className = 'relative group border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-gray-50 dark:bg-gray-900 flex flex-col justify-between';
+
+            const fileUrl = att.url || `/storage/${att.file_path}`;
+            const fileName = att.name || att.file_name;
+            const fileType = att.type || att.file_type;
+
+            let previewHtml = '';
+            if (fileType === 'image') {
+                previewHtml = `<img src="${fileUrl}" class="h-20 w-full object-cover rounded mb-1" alt="${fileName}">`;
+            } else if (fileType === 'video') {
+                previewHtml = `<video src="${fileUrl}" class="h-20 w-full object-cover rounded mb-1" controls></video>`;
+            } else {
+                previewHtml = `
+                    <div class="h-20 flex items-center justify-center bg-gray-200 dark:bg-gray-800 rounded mb-1">
+                        <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>`;
+            }
+
+            item.innerHTML = `
+                ${previewHtml}
+                <div class="flex items-center justify-between gap-1 text-xs">
+                    <a href="${fileUrl}" target="_blank" class="truncate text-indigo-600 dark:text-indigo-400 hover:underline flex-1" title="${fileName}">${fileName}</a>
+                    <button type="button" onclick="deleteAttachmentItem(${att.id})" class="text-red-500 hover:text-red-700 p-0.5" title="Xóa tệp">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            `;
+            container.appendChild(item);
+        }
+
+        async function deleteAttachmentItem(attachmentId) {
+            if (!confirm('Bạn có chắc muốn xóa tệp này?')) return;
+            try {
+                const res = await fetch(`/api/attachments/${attachmentId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const el = document.getElementById(`attachment-${attachmentId}`);
+                    if (el) el.remove();
+                    loadNotes();
+                }
+            } catch (err) {
+                console.error('Lỗi xóa file:', err);
+            }
+        }
 
         function escapeHtml(str) {
             return (str || '').replace(/[&<>'"]/g, 

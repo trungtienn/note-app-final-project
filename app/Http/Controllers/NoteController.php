@@ -6,14 +6,16 @@ use App\Models\Note;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
+use App\Models\Attachment;
+use Illuminate\Support\Facades\Storage;
 
 class NoteController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
         $userId = Auth::id();
-        $query = Note::where('user_id', $userId);
-
+        $query = Note::with(['labels', 'attachments'])
+            ->where('user_id', $userId);
         // Kiểm tra an toàn xem có quan hệ labels không trước khi load
         if (method_exists(Note::class, 'labels')) {
             $query->with('labels');
@@ -100,5 +102,81 @@ class NoteController extends Controller
         $note->delete();
 
         return response()->json(['success' => true, 'message' => 'Đã xóa ghi chú']);
+    }
+
+    /**
+     * Upload một hoặc nhiều file đính kèm cho ghi chú.
+     */
+    public function uploadAttachments(Request $request, Note $note): JsonResponse
+    {
+        if ($note->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'files.*' => ['required', 'file', 'max:20480'], // Tối đa 20MB mỗi file
+        ]);
+
+        $uploadedAttachments = [];
+
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $mimeType = $file->getMimeType();
+                $originalName = $file->getClientOriginalName();
+                $fileSize = $file->getSize();
+
+                // Xác định loại file: image, video hoặc file thông thường
+                $fileType = 'file';
+                if (str_starts_with($mimeType, 'image/')) {
+                    $fileType = 'image';
+                } elseif (str_starts_with($mimeType, 'video/')) {
+                    $fileType = 'video';
+                }
+
+                // Lưu file vào thư mục storage/app/public/attachments
+                $path = $file->store('attachments', 'public');
+
+                $attachment = Attachment::create([
+                    'note_id' => $note->id,
+                    'file_path' => $path,
+                    'file_name' => $originalName,
+                    'file_type' => $fileType,
+                    'file_size' => $fileSize,
+                ]);
+
+                $uploadedAttachments[] = [
+                    'id' => $attachment->id,
+                    'name' => $attachment->file_name,
+                    'type' => $attachment->file_type,
+                    'url' => asset('storage/' . $attachment->file_path),
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'attachments' => $uploadedAttachments,
+            'message' => 'Đã tải lên tệp đính kèm'
+        ]);
+    }
+
+    /**
+     * Xóa một file đính kèm khỏi ghi chú.
+     */
+    public function deleteAttachment(Attachment $attachment): JsonResponse
+    {
+        $note = $attachment->note;
+        if (!$note || $note->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Xóa file vật lý trong storage
+        if (Storage::disk('public')->exists($attachment->file_path)) {
+            Storage::disk('public')->delete($attachment->file_path);
+        }
+
+        $attachment->delete();
+
+        return response()->json(['success' => true, 'message' => 'Đã xóa tệp đính kèm']);
     }
 }
