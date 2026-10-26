@@ -1,17 +1,358 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Dashboard') }}
-        </h2>
-    </x-slot>
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+                {{ __('Ghi chú của tôi') }}
+            </h2>
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    {{ __("You're logged in!") }}
+            <!-- Công cụ Live Search & Toggle View -->
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <!-- Live Search: không có nút bấm, quét title + content, debounce 300ms -->
+                <div class="relative w-full sm:w-72">
+                    <input type="text" id="live-search" placeholder="Tìm kiếm ghi chú (tiêu đề, nội dung)..."
+                        class="w-full text-sm rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500 pl-9 pr-4 py-2 shadow-sm">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+
+                <!-- Chuyển đổi Grid View / List View (Mặc định là Grid view theo đề) -->
+                <div class="flex bg-gray-200 dark:bg-gray-700 p-1 rounded-lg">
+                    <button id="btn-grid-view" onclick="setViewMode('grid')" class="p-1.5 rounded bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm" title="Dạng lưới (Grid)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                    </button>
+                    <button id="btn-list-view" onclick="setViewMode('list')" class="p-1.5 rounded text-gray-500 dark:text-gray-400 hover:text-gray-700" title="Dạng danh sách (List)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    </button>
                 </div>
             </div>
         </div>
+    </x-slot>
+
+    <div class="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Nút mở Editor tạo ghi chú mới -->
+        <div class="mb-6 flex justify-between items-center">
+            <button onclick="openNoteModal(null)" class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold shadow transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                Tạo ghi chú mới
+            </button>
+            <span id="save-status-indicator" class="text-xs text-gray-500 dark:text-gray-400 italic"></span>
+        </div>
+
+        <!-- Vùng hiển thị danh sách Note (Grid mặc định) -->
+        <div id="notes-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Dynamic Notes Content -->
+        </div>
+
+        <!-- Empty State khi không có note -->
+        <div id="empty-state" class="hidden text-center py-16">
+            <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p class="text-gray-500 dark:text-gray-400 font-medium">Chưa có ghi chú nào. Hãy tạo ghi chú đầu tiên của bạn!</p>
+        </div>
     </div>
+
+    <!-- SINGLE INTERFACE MODAL: DÙNG CHUNG CHO CẢ TẠO VÀ SỬA (BẮT BUỘC) -->
+    <div id="note-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div id="modal-box" class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full p-6 transition-all border border-gray-200 dark:border-gray-700">
+            <input type="hidden" id="editor-note-id">
+
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center gap-2">
+                    <span id="modal-title-status" class="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Ghi chú</span>
+                    <span id="modal-auto-save-status" class="text-xs text-gray-400 italic"></span>
+                </div>
+                <!-- Nút đóng (tự lưu trước khi đóng) -->
+                <button onclick="closeNoteModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <!-- Trường Title bắt buộc -->
+            <div class="mb-3">
+                <input type="text" id="editor-title" placeholder="Tiêu đề..." oninput="triggerAutoSave()"
+                    class="w-full text-lg font-bold border-0 border-b border-gray-200 dark:border-gray-700 bg-transparent px-0 py-2 focus:ring-0 focus:border-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-400">
+            </div>
+
+            <!-- Trường Content bắt buộc -->
+            <div class="mb-4">
+                <textarea id="editor-content" rows="8" placeholder="Nhập nội dung ghi chú..." oninput="triggerAutoSave()"
+                    class="w-full border-0 bg-transparent px-0 py-2 focus:ring-0 text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none"></textarea>
+            </div>
+
+            <!-- Thanh trạng thái chân Modal -->
+            <div class="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500">
+                <span>Hệ thống tự động lưu khi dừng gõ</span>
+                <button type="button" onclick="closeNoteModal()" class="px-4 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-200 font-medium">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRMATION DIALOG: BẮT BUỘC KHI XÓA GHI CHÚ (THEO ĐỀ BÀI) -->
+    <div id="delete-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full shadow-xl border border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Xác nhận xóa ghi chú?</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Ghi chú này sẽ bị xóa hoàn toàn khỏi hệ thống. Bạn có chắc chắn muốn tiếp tục?</p>
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-200">Hủy</button>
+                <button id="btn-confirm-delete" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 shadow">Xóa vĩnh viễn</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC CHO CÁC TÍNH NĂNG TRÊN -->
+    <script>
+        let currentView = 'grid'; // 'grid' hoặc 'list'
+        let autoSaveTimer = null;
+        let noteToDeleteId = null;
+        let allNotes = [];
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        // 1. Tải danh sách ghi chú khi mở trang
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNotes();
+            setupLiveSearch();
+        });
+
+        async function loadNotes(searchTerm = '') {
+            try {
+                let url = '/api/notes';
+                if (searchTerm) url += `?search=${encodeURIComponent(searchTerm)}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                allNotes = data.notes;
+                renderNotes();
+            } catch (err) {
+                console.error('Lỗi khi tải notes:', err);
+            }
+        }
+
+        // 2. Chuyển đổi Grid View / List View
+        function setViewMode(mode) {
+            currentView = mode;
+            const container = document.getElementById('notes-container');
+            const btnGrid = document.getElementById('btn-grid-view');
+            const btnList = document.getElementById('btn-list-view');
+
+            if (mode === 'grid') {
+                container.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
+                btnGrid.classList.add('bg-white', 'dark:bg-gray-800', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+                btnList.classList.remove('bg-white', 'dark:bg-gray-800', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+            } else {
+                container.className = 'flex flex-col gap-3 max-w-4xl mx-auto';
+                btnList.classList.add('bg-white', 'dark:bg-gray-800', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+                btnGrid.classList.remove('bg-white', 'dark:bg-gray-800', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+            }
+            renderNotes();
+        }
+
+        // 3. Render các thẻ Note với Icon nhận diện (Pin, Lock, Share)
+        function renderNotes() {
+            const container = document.getElementById('notes-container');
+            const emptyState = document.getElementById('empty-state');
+            container.innerHTML = '';
+
+            if (allNotes.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            allNotes.forEach(note => {
+                const card = document.createElement('div');
+                const isList = currentView === 'list';
+                card.className = `p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition cursor-pointer flex ${isList ? 'justify-between items-center' : 'flex-col justify-between h-48'}`;
+                
+                card.onclick = (e) => {
+                    if (e.target.closest('button')) return; // Không mở modal nếu bấm nút xóa/pin
+                    openNoteModal(note);
+                };
+
+                // Icons nhận diện: Pin, Lock, Shared theo yêu cầu bôi đỏ
+                let statusIcons = '';
+                if (note.is_pinned) {
+                    statusIcons += `<span title="Ghi chú đã ghim" class="text-amber-500"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"/></svg></span>`;
+                }
+                if (note.password_hash) {
+                    statusIcons += `<span title="Có mật khẩu bảo vệ" class="text-red-500"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg></span>`;
+                }
+
+                card.innerHTML = `
+                    <div class="${isList ? 'flex-1 pr-4' : 'overflow-hidden'}">
+                        <div class="flex items-center gap-2 mb-1">
+                            ${statusIcons}
+                            <h3 class="font-bold text-gray-900 dark:text-gray-100 truncate">${escapeHtml(note.title)}</h3>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 ${isList ? 'truncate' : 'line-clamp-4'}">${escapeHtml(note.content || 'Không có nội dung')}</p>
+                    </div>
+                    <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
+                        <span>${new Date(note.updated_at).toLocaleDateString('vi-VN')}</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="togglePinNote(${note.id})" title="${note.is_pinned ? 'Bỏ ghim' : 'Ghim lên đầu'}" class="p-1 hover:text-amber-500">
+                                <svg class="w-4 h-4" fill="${note.is_pinned ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+                            </button>
+                            <button onclick="promptDelete(${note.id})" title="Xóa ghi chú" class="p-1 hover:text-red-500">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 4. Live Search: Debounce 300ms, không nút bấm
+        function setupLiveSearch() {
+            const searchInput = document.getElementById('live-search');
+            let searchTimer = null;
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    loadNotes(e.target.value.trim());
+                }, 300); // Đảm bảo đúng 300ms theo đề bài
+            });
+        }
+
+        // 5. Single Interface Modal: Mở chung cho cả Tạo mới và Sửa
+        function openNoteModal(note = null) {
+            const modal = document.getElementById('note-modal');
+            const idField = document.getElementById('editor-note-id');
+            const titleField = document.getElementById('editor-title');
+            const contentField = document.getElementById('editor-content');
+            const titleStatus = document.getElementById('modal-title-status');
+            const saveStatus = document.getElementById('modal-auto-save-status');
+
+            saveStatus.innerText = '';
+
+            if (note) {
+                // Đang sửa
+                idField.value = note.id;
+                titleField.value = note.title;
+                contentField.value = note.content || '';
+                titleStatus.innerText = 'Chỉnh sửa ghi chú';
+            } else {
+                // Đang tạo mới
+                idField.value = '';
+                titleField.value = '';
+                contentField.value = '';
+                titleStatus.innerText = 'Tạo ghi chú mới';
+            }
+
+            modal.classList.remove('hidden');
+            titleField.focus();
+        }
+
+        function closeNoteModal() {
+            document.getElementById('note-modal').classList.add('hidden');
+            loadNotes(); // Refresh lại danh sách
+        }
+
+        // 6. Cơ chế Auto-save (Tự động lưu khi dừng gõ, không nút bấm)
+        function triggerAutoSave() {
+            const saveStatus = document.getElementById('modal-auto-save-status');
+            saveStatus.innerText = 'Đang lưu ngầm...';
+
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                performAutoSave();
+            }, 600); // 600ms sau khi ngừng gõ
+        }
+
+        async function performAutoSave() {
+            const id = document.getElementById('editor-note-id').value;
+            const title = document.getElementById('editor-title').value.trim();
+            const content = document.getElementById('editor-content').value;
+            const saveStatus = document.getElementById('modal-auto-save-status');
+
+            if (!title) {
+                saveStatus.innerText = 'Cần nhập tiêu đề để tự lưu';
+                return;
+            }
+
+            try {
+                // Lấy token an toàn, nếu không có meta tag thì fallback lấy token từ session
+                const metaToken = document.querySelector('meta[name="csrf-token"]');
+                const token = metaToken ? metaToken.getAttribute('content') : '';
+
+                const res = await fetch('/api/notes/auto-save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': token,
+                    },
+                    body: JSON.stringify({ 
+                        id: id ? parseInt(id) : null, 
+                        title: title, 
+                        content: content 
+                    }),
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    console.error('Lỗi phản hồi API:', res.status, errData);
+                    saveStatus.innerText = `Lỗi (${res.status}): Không thể lưu`;
+                    return;
+                }
+
+                const data = await res.json();
+                if (data.success && data.note) {
+                    document.getElementById('editor-note-id').value = data.note.id; // Gán ID để chuyển sang chế độ cập nhật
+                    saveStatus.innerText = '✓ Đã tự động lưu';
+                } else {
+                    saveStatus.innerText = 'Lưu thất bại';
+                }
+            } catch (err) {
+                console.error('Lỗi mạng hoặc script:', err);
+                saveStatus.innerText = 'Lỗi kết nối';
+            }
+        }
+
+        // 7. Toggle Ghim Note
+        async function togglePinNote(noteId) {
+            try {
+                await fetch(`/api/notes/${noteId}/toggle-pin`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': csrfToken },
+                });
+                loadNotes();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // 8. Hộp thoại xác nhận xóa (Confirmation Dialog)
+        function promptDelete(noteId) {
+            noteToDeleteId = noteId;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            noteToDeleteId = null;
+            document.getElementById('delete-modal').classList.add('hidden');
+        }
+
+        document.getElementById('btn-confirm-delete').onclick = async () => {
+            if (!noteToDeleteId) return;
+            try {
+                await fetch(`/api/notes/${noteToDeleteId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': csrfToken },
+                });
+                closeDeleteModal();
+                loadNotes();
+            } catch (err) {
+                console.error('Lỗi xóa note:', err);
+            }
+        };
+
+        function escapeHtml(str) {
+            return (str || '').replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
 </x-app-layout>

@@ -50,4 +50,14 @@ class User extends Authenticatable implements MustVerifyEmail
             'preferences' => 'array',
         ];
     }
+
+    public function notes()
+    {
+        return $this->hasMany(Note::class);
+    }
+
+    public function labels()
+    {
+        return $this->hasMany(Label::class);
+    }
 }
