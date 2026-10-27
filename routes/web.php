@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PreferenceController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\LabelController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -24,6 +25,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('/api/notes/{note}', [NoteController::class, 'destroy'])->name('notes.destroy');
     Route::post('/api/notes/{note}/attachments', [NoteController::class, 'uploadAttachments'])->name('notes.attachments.upload');
     Route::delete('/api/attachments/{attachment}', [NoteController::class, 'deleteAttachment'])->name('attachments.destroy');
+    Route::get('/api/labels', [LabelController::class, 'index'])->name('labels.index');
+    Route::post('/api/labels', [LabelController::class, 'store'])->name('labels.store');
+    Route::put('/api/labels/{label}', [LabelController::class, 'update'])->name('labels.update');
+    Route::delete('/api/labels/{label}', [LabelController::class, 'destroy'])->name('labels.destroy');
+    Route::post('/api/notes/{note}/sync-labels', [NoteController::class, 'syncLabels'])->name('notes.syncLabels');
 });
 
 require __DIR__.'/auth.php';

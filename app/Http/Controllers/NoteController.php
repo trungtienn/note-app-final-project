@@ -16,11 +16,16 @@ class NoteController extends Controller
         $userId = Auth::id();
         $query = Note::with(['labels', 'attachments'])
             ->where('user_id', $userId);
-        // Kiểm tra an toàn xem có quan hệ labels không trước khi load
-        if (method_exists(Note::class, 'labels')) {
-            $query->with('labels');
+
+        // 1. Lọc theo nhãn được chọn (Label Filter)
+        if ($request->filled('label_id')) {
+            $labelId = $request->label_id;
+            $query->whereHas('labels', function ($q) use ($labelId) {
+                $q->where('labels.id', $labelId);
+            });
         }
 
+        // 2. Tìm kiếm tức thì (Live Search theo title hoặc content)
         if ($request->filled('search')) {
             $keyword = '%' . $request->search . '%';
             $query->where(function ($q) use ($keyword) {
@@ -29,6 +34,7 @@ class NoteController extends Controller
             });
         }
 
+        // 3. Sắp xếp: Ưu tiên Ghim lên đầu, sau đó đến thời gian cập nhật mới nhất
         $notes = $query->orderByDesc('is_pinned')
             ->orderByDesc('pinned_at')
             ->orderByDesc('updated_at')
@@ -178,5 +184,28 @@ class NoteController extends Controller
         $attachment->delete();
 
         return response()->json(['success' => true, 'message' => 'Đã xóa tệp đính kèm']);
+    }
+
+    /**
+     * Gắn hoặc gỡ nhãn cho ghi chú.
+     */
+    public function syncLabels(Request $request, Note $note): JsonResponse
+    {
+        if ($note->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'label_ids' => ['nullable', 'array'],
+            'label_ids.*' => ['exists:labels,id'],
+        ]);
+
+        $note->labels()->sync($validated['label_ids'] ?? []);
+
+        return response()->json([
+            'success' => true,
+            'note' => $note->fresh(['labels', 'attachments']),
+            'message' => 'Đã cập nhật nhãn cho ghi chú',
+        ]);
     }
 }
