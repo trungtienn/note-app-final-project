@@ -120,7 +120,14 @@
 
             <!-- Thanh trạng thái chân Modal -->
             <div class="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500">
-                <span>Hệ thống tự động lưu khi dừng gõ</span>
+                <div class="flex items-center gap-4">
+                    <span>Hệ thống tự động lưu khi dừng gõ</span>
+                    <!-- Nút đặt / gỡ mật khẩu -->
+                    <button type="button" id="btn-toggle-note-lock" onclick="handleNoteSecurity()" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        <span>Đặt mật khẩu</span>
+                    </button>
+                </div>
                 <button type="button" onclick="closeNoteModal()" class="px-4 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-200 font-medium">
                     Đóng
                 </button>
@@ -165,7 +172,25 @@
         </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC CHO CÁC TÍNH NĂNG TRÊN -->
+    <div id="unlock-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-sm w-full shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center gap-2 mb-3 text-amber-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Ghi chú được bảo vệ</h3>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Vui lòng nhập mật khẩu để mở khóa và xem nội dung ghi chú này.</p>
+            
+            <input type="password" id="unlock-password-input" placeholder="Nhập mật khẩu ghi chú..." 
+                   class="w-full text-sm rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 px-3 py-2 mb-2 focus:ring-indigo-500 focus:border-indigo-500">
+            <p id="unlock-error-msg" class="text-xs text-red-500 font-medium mb-3 hidden"></p>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeUnlockModal()" class="px-3.5 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium">Hủy</button>
+                <button onclick="submitUnlockNote()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow">Mở khóa</button>
+            </div>
+        </div>
+    </div>
+
     <!-- JAVASCRIPT LOGIC CHO CÁC TÍNH NĂNG -->
     <script>
         let currentView = 'grid'; // 'grid' hoặc 'list'
@@ -237,8 +262,12 @@
                 
                 card.onclick = (e) => {
                     if (e.target.closest('button')) return;
-                    const freshNote = allNotes.find(n => n.id === note.id) || note;
-                    openNoteModal(freshNote);
+                    if (note.has_password) {
+                        openUnlockModal(note.id);
+                    } else {
+                        const freshNote = allNotes.find(n => n.id === note.id) || note;
+                        openNoteModal(freshNote);
+                    }
                 };
 
                 let statusIcons = '';
@@ -325,6 +354,7 @@
             }
 
             renderNoteLabelChips(note);
+            updateSecurityButton(note);
             modal.classList.remove('hidden');
             titleField.focus();
         }
@@ -384,6 +414,7 @@
                 const data = await res.json();
                 if (data.success && data.note) {
                     document.getElementById('editor-note-id').value = data.note.id;
+                    updateSecurityButton(data.note);
                     document.getElementById('btn-add-attachment').classList.remove('opacity-50', 'pointer-events-none');
                     saveStatus.innerText = '✓ Đã tự động lưu';
                 } else {
@@ -712,6 +743,114 @@
                 }
             } catch (err) {
                 console.error(err);
+            }
+        }
+        // Xử lý khoá và mở khoá ghi chú
+        let pendingUnlockNoteId = null;
+
+        function openUnlockModal(noteId) {
+            pendingUnlockNoteId = noteId;
+            document.getElementById('unlock-password-input').value = '';
+            document.getElementById('unlock-error-msg').classList.add('hidden');
+            document.getElementById('unlock-modal').classList.remove('hidden');
+            document.getElementById('unlock-password-input').focus();
+        }
+
+        function closeUnlockModal() {
+            pendingUnlockNoteId = null;
+            document.getElementById('unlock-modal').classList.add('hidden');
+        }
+
+        async function submitUnlockNote() {
+            const password = document.getElementById('unlock-password-input').value;
+            const errorMsg = document.getElementById('unlock-error-msg');
+
+            if (!password) {
+                errorMsg.innerText = 'Vui lòng nhập mật khẩu';
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/notes/${pendingUnlockNoteId}/unlock`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: JSON.stringify({ password }),
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    errorMsg.innerText = data.error || 'Mật khẩu không chính xác';
+                    errorMsg.classList.remove('hidden');
+                    return;
+                }
+
+                closeUnlockModal();
+                // Mở modal với dữ liệu đã được server giải mã
+                openNoteModal(data.note);
+            } catch (err) {
+                errorMsg.innerText = 'Lỗi kết nối';
+                errorMsg.classList.remove('hidden');
+            }
+        }
+
+        // Cập nhật nút khóa trong openNoteModal(note)
+        function updateSecurityButton(note) {
+            const btn = document.getElementById('btn-toggle-note-lock');
+            if (!note || !note.id) {
+                btn.classList.add('hidden');
+                return;
+            }
+            btn.classList.remove('hidden');
+            if (note.has_password || note.password_hash) {
+                btn.innerHTML = `<svg class="w-3.5 h-3.5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg> Gỡ mật khẩu`;
+            } else {
+                btn.innerHTML = `<svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> Đặt mật khẩu`;
+            }
+        }
+
+        async function handleNoteSecurity() {
+            const noteId = document.getElementById('editor-note-id').value;
+            const currentNote = allNotes.find(n => n.id == noteId);
+            const isLocked = currentNote && (currentNote.has_password || currentNote.password_hash);
+
+            if (isLocked) {
+                const currentPass = prompt('Nhập mật khẩu hiện tại để gỡ bỏ bảo vệ:');
+                if (!currentPass) return;
+
+                const res = await fetch(`/api/notes/${noteId}/remove-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: JSON.stringify({ current_password: currentPass }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Đã gỡ mật khẩu thành công!');
+                    currentNote.has_password = false;
+                    delete currentNote.password_hash;
+                    updateSecurityButton(currentNote);
+                    loadNotes();
+                } else {
+                    alert(data.error || 'Mật khẩu không đúng!');
+                }
+            } else {
+                const newPass = prompt('Nhập mật khẩu mới cho ghi chú này (tối thiểu 4 ký tự):');
+                if (!newPass) return;
+
+                const res = await fetch(`/api/notes/${noteId}/set-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: JSON.stringify({ password: newPass }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Đã đặt mật khẩu thành công!');
+                    if (currentNote) currentNote.has_password = true;
+                    updateSecurityButton({ has_password: true });
+                    loadNotes();
+                } else {
+                    alert(data.error || 'Không thể đặt mật khẩu!');
+                }
             }
         }
 

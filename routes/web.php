@@ -30,6 +30,9 @@ Route::middleware('auth')->group(function () {
     Route::put('/api/labels/{label}', [LabelController::class, 'update'])->name('labels.update');
     Route::delete('/api/labels/{label}', [LabelController::class, 'destroy'])->name('labels.destroy');
     Route::post('/api/notes/{note}/sync-labels', [NoteController::class, 'syncLabels'])->name('notes.syncLabels');
+    Route::post('/api/notes/{note}/set-password', [NoteController::class, 'setPassword'])->name('notes.setPassword');
+    Route::post('/api/notes/{note}/remove-password', [NoteController::class, 'removePassword'])->name('notes.removePassword');
+    Route::post('/api/notes/{note}/unlock', [NoteController::class, 'unlockNote'])->name('notes.unlock');
 });
 
 require __DIR__.'/auth.php';

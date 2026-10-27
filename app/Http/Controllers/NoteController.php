@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
 use App\Models\Attachment;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
 
 class NoteController extends Controller
 {
@@ -38,7 +39,25 @@ class NoteController extends Controller
         $notes = $query->orderByDesc('is_pinned')
             ->orderByDesc('pinned_at')
             ->orderByDesc('updated_at')
-            ->get();
+            ->get()
+            ->map(function ($note) {
+                // Kiểm tra nếu ghi chú có đặt mật khẩu bảo vệ
+                $hasPassword = !empty($note->password_hash);
+
+                if ($hasPassword) {
+                    $note->content = '🔒 Ghi chú này đã được bảo vệ bằng mật khẩu.';
+                    // Ẩn tệp đính kèm ở chế độ xem trước ngoài lưới
+                    $note->setRelation('attachments', collect([]));
+                }
+
+                // Gắn cờ để Frontend biết ghi chú đang bị khóa
+                $note->has_password = $hasPassword;
+
+                // Xóa hash mật khẩu khỏi dữ liệu trả về để bảo mật
+                unset($note->password_hash);
+
+                return $note;
+            });
 
         return response()->json([
             'notes' => $notes,
@@ -206,6 +225,75 @@ class NoteController extends Controller
             'success' => true,
             'note' => $note->fresh(['labels', 'attachments']),
             'message' => 'Đã cập nhật nhãn cho ghi chú',
+        ]);
+    }
+
+    public function setPassword(Request $request, Note $note): JsonResponse
+    {
+        if ($note->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'password' => ['required', 'string', 'min:4'],
+        ]);
+
+        $note->password_hash = Hash::make($validated['password']);
+        $note->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã thiết lập mật khẩu cho ghi chú',
+        ]);
+    }
+
+    /**
+     * Gỡ bỏ mật khẩu bảo vệ của ghi chú.
+     */
+    public function removePassword(Request $request, Note $note): JsonResponse
+    {
+        if ($note->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+        ]);
+
+        if (!Hash::check($validated['current_password'], $note->password_hash)) {
+            return response()->json(['error' => 'Mật khẩu hiện tại không chính xác'], 422);
+        }
+
+        $note->password_hash = null;
+        $note->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã gỡ bỏ mật khẩu bảo vệ',
+        ]);
+    }
+
+    /**
+     * Xác thực mật khẩu để mở khóa xem và sửa ghi chú.
+     */
+    public function unlockNote(Request $request, Note $note): JsonResponse
+    {
+        if ($note->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'password' => ['required', 'string'],
+        ]);
+
+        if (!Hash::check($validated['password'], $note->password_hash)) {
+            return response()->json(['error' => 'Mật khẩu không chính xác'], 422);
+        }
+
+        // Trả về dữ liệu đầy đủ sau khi mở khóa
+        return response()->json([
+            'success' => true,
+            'note' => $note->fresh(['labels', 'attachments']),
         ]);
     }
 }
