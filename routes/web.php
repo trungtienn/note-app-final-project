@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PreferenceController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\LabelController;
+use App\Http\Controllers\ShareController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -33,6 +34,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/notes/{note}/set-password', [NoteController::class, 'setPassword'])->name('notes.setPassword');
     Route::post('/api/notes/{note}/remove-password', [NoteController::class, 'removePassword'])->name('notes.removePassword');
     Route::post('/api/notes/{note}/unlock', [NoteController::class, 'unlockNote'])->name('notes.unlock');
+    Route::get('/api/notes/{note}/shares', [ShareController::class, 'index'])->name('notes.shares.index');
+    Route::post('/api/notes/{note}/share', [ShareController::class, 'share'])->name('notes.shares.store');
+    Route::delete('/api/shares/{share}', [ShareController::class, 'revoke'])->name('notes.shares.revoke');
 });
 
 require __DIR__.'/auth.php';

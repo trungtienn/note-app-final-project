@@ -14,53 +14,73 @@ class NoteController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $userId = Auth::id();
-        $query = Note::with(['labels', 'attachments'])
-            ->where('user_id', $userId);
+        $user = Auth::user();
+        //Query ghi chú do chính mình tạo
+        $myNotesQuery = Note::with(['labels', 'attachments', 'shares'])
+            ->where('user_id', $user->id);
 
-        // 1. Lọc theo nhãn được chọn (Label Filter)
+        //Query ghi chú được người khác chia sẻ với mình
+        $sharedNotesQuery = $user->sharedNotes()
+            ->with(['labels', 'attachments', 'shares', 'user:id,display_name,email']);
+
+        //Áp dụng bộ lọc nhãn (Label Filter) cho cả 2 query
         if ($request->filled('label_id')) {
             $labelId = $request->label_id;
-            $query->whereHas('labels', function ($q) use ($labelId) {
+            $myNotesQuery->whereHas('labels', function ($q) use ($labelId) {
+                $q->where('labels.id', $labelId);
+            });
+            $sharedNotesQuery->whereHas('labels', function ($q) use ($labelId) {
                 $q->where('labels.id', $labelId);
             });
         }
 
-        // 2. Tìm kiếm tức thì (Live Search theo title hoặc content)
+        //Áp dụng tìm kiếm tức thì (Live Search) cho cả 2 query
         if ($request->filled('search')) {
             $keyword = '%' . $request->search . '%';
-            $query->where(function ($q) use ($keyword) {
+            $filter = function ($q) use ($keyword) {
                 $q->where('title', 'LIKE', $keyword)
                   ->orWhere('content', 'LIKE', $keyword);
-            });
+            };
+            $myNotesQuery->where($filter);
+            $sharedNotesQuery->where($filter);
         }
 
-        // 3. Sắp xếp: Ưu tiên Ghim lên đầu, sau đó đến thời gian cập nhật mới nhất
-        $notes = $query->orderByDesc('is_pinned')
+        //Định dạng danh sách ghi chú của tôi (giữ nguyên logic mã hóa mật khẩu)
+        $myNotes = $myNotesQuery->orderByDesc('is_pinned')
             ->orderByDesc('pinned_at')
             ->orderByDesc('updated_at')
             ->get()
             ->map(function ($note) {
-                // Kiểm tra nếu ghi chú có đặt mật khẩu bảo vệ
                 $hasPassword = !empty($note->password_hash);
 
                 if ($hasPassword) {
                     $note->content = '🔒 Ghi chú này đã được bảo vệ bằng mật khẩu.';
-                    // Ẩn tệp đính kèm ở chế độ xem trước ngoài lưới
                     $note->setRelation('attachments', collect([]));
                 }
 
-                // Gắn cờ để Frontend biết ghi chú đang bị khóa
+                $note->is_owner = true;
+                $note->permission = 'owner';
+                $note->is_shared = $note->shares->count() > 0;
                 $note->has_password = $hasPassword;
 
-                // Xóa hash mật khẩu khỏi dữ liệu trả về để bảo mật
                 unset($note->password_hash);
+                return $note;
+            });
 
+        //Định dạng danh sách ghi chú được chia sẻ với tôi
+        $sharedNotes = $sharedNotesQuery->orderByDesc('updated_at')
+            ->get()
+            ->map(function ($note) {
+                $note->is_owner = false;
+                $note->permission = $note->pivot->permission ?? 'view';
+                $note->is_shared = true;
+                $note->has_password = false;
                 return $note;
             });
 
         return response()->json([
-            'notes' => $notes,
+            'notes' => $myNotes,
+            'shared_notes' => $sharedNotes,
         ]);
     }
 
@@ -83,13 +103,28 @@ class NoteController extends Controller
         $color = $validated['color'] ?? $defaultColor;
 
         if (!empty($validated['id'])) {
-            $note = Note::where('user_id', Auth::id())->findOrFail($validated['id']);
+            $note = Note::findOrFail($validated['id']);
+
+            // Kiểm tra: Phải là chủ sở hữu HOẶC có quyền 'edit' được chia sẻ
+            $isOwner = $note->user_id === Auth::id();
+            $canEdit = $note->shares()
+                ->where('user_id', Auth::id())
+                ->where('permission', 'edit')
+                ->exists();
+
+            if (!$isOwner && !$canEdit) {
+                return response()->json([
+                    'error' => 'Bạn chỉ có quyền xem, không được chỉnh sửa ghi chú này'
+                ], 403);
+            }
+
             $note->update([
                 'title' => $validated['title'],
                 'content' => $validated['content'] ?? '',
                 'color' => $color,
             ]);
         } else {
+            // Tạo mới luôn thuộc về user đang đăng nhập
             $note = Note::create([
                 'user_id' => Auth::id(),
                 'title' => $validated['title'],

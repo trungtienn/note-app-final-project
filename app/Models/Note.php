@@ -44,4 +44,14 @@ class Note extends Model
     {
         return $this->hasMany(Attachment::class);
     }
+
+    public function shares()
+    {
+        return $this->hasMany(NoteShare::class);
+    }
+
+    public function sharedUsers()
+    {
+        return $this->belongsToMany(User::class, 'note_shares')->withPivot('permission')->withTimestamps();
+    }
 }

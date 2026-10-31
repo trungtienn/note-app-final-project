@@ -64,6 +64,15 @@
             </svg>
             <p class="text-gray-500 dark:text-gray-400 font-medium">Chưa có ghi chú nào. Hãy tạo ghi chú đầu tiên của bạn!</p>
         </div>
+
+        <!-- KHU VỰC GHI CHÚ ĐƯỢC CHIA SẺ VỚI TÔI -->
+        <div id="shared-notes-wrapper" class="mt-10 hidden border-t border-gray-200 dark:border-gray-700 pt-8">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 flex items-center gap-2">
+                <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                Ghi chú được chia sẻ với tôi
+            </h3>
+            <div id="shared-notes-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+        </div>
     </div>
 
     <!-- SINGLE INTERFACE MODAL: DÙNG CHUNG CHO CẢ TẠO VÀ SỬA (BẮT BUỘC) -->
@@ -126,6 +135,10 @@
                     <button type="button" id="btn-toggle-note-lock" onclick="handleNoteSecurity()" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                         <span>Đặt mật khẩu</span>
+                    </button>
+                    <button type="button" id="btn-share-note" onclick="openShareModal()" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                        <span>Chia sẻ</span>
                     </button>
                 </div>
                 <button type="button" onclick="closeNoteModal()" class="px-4 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-200 font-medium">
@@ -191,6 +204,39 @@
         </div>
     </div>
 
+    <!-- MODAL QUẢN LÝ CHIA SẺ GHI CHÚ -->
+    <div id="share-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-base text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                    Chia sẻ ghi chú
+                </h3>
+                <button onclick="closeShareModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Form thêm người nhận -->
+            <div class="flex gap-2 mb-4">
+                <input type="email" id="share-email-input" placeholder="Nhập email người nhận..." class="flex-1 text-xs rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 px-3 py-2">
+                <select id="share-permission-select" class="text-xs rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 py-2">
+                    <option value="view">Chỉ xem</option>
+                    <option value="edit">Được sửa</option>
+                </select>
+                <button onclick="submitShareNote()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow">Gửi</button>
+            </div>
+            <p id="share-error-msg" class="text-xs text-red-500 mb-3 hidden"></p>
+
+            <!-- Danh sách người đã được chia sẻ -->
+            <div class="text-xs font-semibold uppercase text-gray-400 mb-2">Đang chia sẻ với:</div>
+            <div id="shared-users-list" class="max-h-48 overflow-y-auto space-y-2"></div>
+
+            <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 text-right">
+                <button onclick="closeShareModal()" class="px-4 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded text-xs font-medium">Đóng</button>
+            </div>
+        </div>
+    </div>
     <!-- JAVASCRIPT LOGIC CHO CÁC TÍNH NĂNG -->
     <script>
         let currentView = 'grid'; // 'grid' hoặc 'list'
@@ -199,6 +245,7 @@
         let allNotes = [];
         let allLabels = [];
         let selectedLabelFilter = null;
+        let allSharedNotes = [];
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
         // Khởi chạy khi load trang
@@ -217,8 +264,10 @@
 
                 const res = await fetch(url);
                 const data = await res.json();
-                allNotes = data.notes;
+                allNotes = data.notes || [];
+                allSharedNotes = data.shared_notes || [];
                 renderNotes();
+                renderSharedNotes();
             } catch (err) {
                 console.error('Lỗi khi tải notes:', err);
             }
@@ -331,16 +380,28 @@
             const saveStatus = document.getElementById('modal-auto-save-status');
             const attachmentsList = document.getElementById('attachments-list');
             const btnAddAttachment = document.getElementById('btn-add-attachment');
+            const btnShare = document.getElementById('btn-share-note');
 
             saveStatus.innerText = '';
             attachmentsList.innerHTML = '';
+
+            // Kiểm tra quyền chỉ xem (view-only)
+            const isReadOnly = Boolean(note && note.permission === 'view');
+            titleField.readOnly = isReadOnly;
+            contentField.readOnly = isReadOnly;
 
             if (note) {
                 idField.value = note.id;
                 titleField.value = note.title;
                 contentField.value = note.content || '';
-                titleStatus.innerText = 'Chỉnh sửa ghi chú';
-                btnAddAttachment.classList.remove('opacity-50', 'pointer-events-none');
+                
+                if (isReadOnly) {
+                    titleStatus.innerText = 'Xem ghi chú (Chỉ đọc)';
+                    btnAddAttachment.classList.add('opacity-50', 'pointer-events-none');
+                } else {
+                    titleStatus.innerText = (note.is_owner === false) ? 'Cùng chỉnh sửa ghi chú' : 'Chỉnh sửa ghi chú';
+                    btnAddAttachment.classList.remove('opacity-50', 'pointer-events-none');
+                }
                 
                 if (note.attachments && note.attachments.length > 0) {
                     note.attachments.forEach(att => renderAttachmentItem(att));
@@ -353,10 +414,22 @@
                 btnAddAttachment.classList.add('opacity-50', 'pointer-events-none');
             }
 
+            // Chỉ chủ sở hữu ghi chú mới thấy nút chia sẻ và nút quản lý mật khẩu
+            const isOwner = !note || !note.id || note.is_owner !== false;
+            if (btnShare) {
+                if (note && note.id && isOwner) {
+                    btnShare.classList.remove('hidden');
+                } else {
+                    btnShare.classList.add('hidden');
+                }
+            }
+
             renderNoteLabelChips(note);
-            updateSecurityButton(note);
+            updateSecurityButton(isOwner ? note : null);
             modal.classList.remove('hidden');
-            titleField.focus();
+            if (!isReadOnly) {
+                titleField.focus();
+            }
         }
 
         function closeNoteModal() {
@@ -851,6 +924,141 @@
                 } else {
                     alert(data.error || 'Không thể đặt mật khẩu!');
                 }
+            }
+        }
+
+        function renderSharedNotes() {
+            const wrapper = document.getElementById('shared-notes-wrapper');
+            const container = document.getElementById('shared-notes-container');
+            container.innerHTML = '';
+
+            if (allSharedNotes.length === 0) {
+                wrapper.classList.add('hidden');
+                return;
+            }
+            wrapper.classList.remove('hidden');
+
+            allSharedNotes.forEach(note => {
+                const card = document.createElement('div');
+                card.className = 'p-4 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between min-h-48';
+                
+                card.onclick = () => {
+                    openNoteModal(note);
+                };
+
+                const permBadge = note.permission === 'edit' 
+                    ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">Được sửa</span>'
+                    : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-semibold">Chỉ xem</span>';
+
+                const ownerName = note.user ? escapeHtml(note.user.display_name || note.user.email) : 'Người khác';
+
+                card.innerHTML = `
+                    <div class="overflow-hidden">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <h3 class="font-bold text-gray-900 dark:text-gray-100 truncate flex-1">${escapeHtml(note.title)}</h3>
+                            ${permBadge}
+                        </div>
+                        <p class="text-xs text-indigo-500 mb-2 italic">Từ: ${ownerName}</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">${escapeHtml(note.content || 'Không có nội dung')}</p>
+                    </div>
+                    <div class="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
+                        <span>Cập nhật: ${new Date(note.updated_at).toLocaleDateString('vi-VN')}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function openShareModal() {
+            const noteId = document.getElementById('editor-note-id').value;
+            if (!noteId) return;
+
+            document.getElementById('share-email-input').value = '';
+            document.getElementById('share-error-msg').classList.add('hidden');
+            document.getElementById('share-modal').classList.remove('hidden');
+            await loadSharedUsers(noteId);
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-modal').classList.add('hidden');
+        }
+
+        async function loadSharedUsers(noteId) {
+            try {
+                const res = await fetch(`/api/notes/${noteId}/shares`);
+                const data = await res.json();
+                const list = document.getElementById('shared-users-list');
+                list.innerHTML = '';
+
+                if (!data.shares || data.shares.length === 0) {
+                    list.innerHTML = '<p class="text-xs text-gray-400 italic">Chưa chia sẻ với ai.</p>';
+                    return;
+                }
+
+                data.shares.forEach(s => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between p-2 rounded bg-gray-50 dark:bg-gray-700/50 text-xs';
+                    row.innerHTML = `
+                        <div>
+                            <span class="font-medium text-gray-800 dark:text-gray-200">${escapeHtml(s.user.display_name || s.user.email)}</span>
+                            <span class="text-[10px] text-gray-400">(${s.permission === 'edit' ? 'Được sửa' : 'Chỉ xem'})</span>
+                        </div>
+                        <button onclick="revokeShare(${s.id})" class="text-red-500 hover:text-red-700 font-medium">Hủy</button>
+                    `;
+                    list.appendChild(row);
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function submitShareNote() {
+            const noteId = document.getElementById('editor-note-id').value;
+            const email = document.getElementById('share-email-input').value.trim();
+            const permission = document.getElementById('share-permission-select').value;
+            const errorMsg = document.getElementById('share-error-msg');
+
+            if (!email) {
+                errorMsg.innerText = 'Vui lòng nhập email';
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/notes/${noteId}/share`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: JSON.stringify({ email, permission }),
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    errorMsg.innerText = data.error || 'Lỗi khi chia sẻ';
+                    errorMsg.classList.remove('hidden');
+                    return;
+                }
+
+                errorMsg.classList.add('hidden');
+                document.getElementById('share-email-input').value = '';
+                await loadSharedUsers(noteId);
+                loadNotes();
+            } catch (err) {
+                errorMsg.innerText = 'Lỗi kết nối';
+                errorMsg.classList.remove('hidden');
+            }
+        }
+
+        async function revokeShare(shareId) {
+            const noteId = document.getElementById('editor-note-id').value;
+            try {
+                await fetch(`/api/shares/${shareId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': csrfToken },
+                });
+                await loadSharedUsers(noteId);
+                loadNotes();
+            } catch (err) {
+                console.error(err);
             }
         }
 
