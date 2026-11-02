@@ -246,6 +246,11 @@
         let allLabels = [];
         let selectedLabelFilter = null;
         let allSharedNotes = [];
+        let realTimeSyncTimer = null;
+        let lastSyncTimestamp = null;
+        let isUserTyping = false;
+        let typingTimeout = null;
+        let autoSaveTimeout = null; 
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
         // Khởi chạy khi load trang
@@ -430,32 +435,44 @@
             if (!isReadOnly) {
                 titleField.focus();
             }
+            lastSyncTimestamp = note && note.updated_at ? note.updated_at : new Date().toISOString();
+            startRealTimeSync(note ? note.id : null);
         }
 
         function closeNoteModal() {
+            stopRealTimeSync();
             document.getElementById('note-modal').classList.add('hidden');
             loadNotes();
         }
 
         // 6. Cơ chế Auto-save (ngừng gõ 600ms tự lưu)
         function triggerAutoSave() {
-            const saveStatus = document.getElementById('modal-auto-save-status');
-            saveStatus.innerText = 'Đang lưu ngầm...';
+            isUserTyping = true;
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                isUserTyping = false;
+            }, 1200);
 
-            clearTimeout(autoSaveTimer);
-            autoSaveTimer = setTimeout(() => {
+            const status = document.getElementById('modal-auto-save-status');
+            status.innerText = 'Đang lưu...';
+
+            clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(() => {
                 performAutoSave();
-            }, 600);
+            }, 500); // Debounce 500ms
         }
 
         async function performAutoSave() {
-            const id = document.getElementById('editor-note-id').value;
-            const title = document.getElementById('editor-title').value.trim();
-            const content = document.getElementById('editor-content').value;
+            const idInput = document.getElementById('editor-note-id');
+            const id = idInput ? idInput.value : null;
+            const titleInput = document.getElementById('editor-title');
+            const title = titleInput ? titleInput.value.trim() : '';
+            const contentInput = document.getElementById('editor-content');
+            const content = contentInput ? contentInput.value : '';
             const saveStatus = document.getElementById('modal-auto-save-status');
 
             if (!title) {
-                saveStatus.innerText = 'Cần nhập tiêu đề để tự lưu';
+                if (saveStatus) saveStatus.innerText = 'Cần nhập tiêu đề để tự lưu';
                 return;
             }
 
@@ -479,23 +496,46 @@
 
                 if (!res.ok) {
                     const errData = await res.json().catch(() => ({}));
-                    console.error('Lỗi phản hồi API:', res.status, errData);
-                    saveStatus.innerText = `Lỗi (${res.status}): Không thể lưu`;
+                    console.error('Lỗi API auto-save:', res.status, errData);
+                    if (saveStatus) saveStatus.innerText = `Lỗi (${res.status}): Không thể lưu`;
                     return;
                 }
 
                 const data = await res.json();
                 if (data.success && data.note) {
-                    document.getElementById('editor-note-id').value = data.note.id;
-                    updateSecurityButton(data.note);
-                    document.getElementById('btn-add-attachment').classList.remove('opacity-50', 'pointer-events-none');
-                    saveStatus.innerText = '✓ Đã tự động lưu';
+                    const isNewNote = !id;
+                    if (idInput) idInput.value = data.note.id;
+
+                    // Cập nhật nút bảo mật nếu có hàm
+                    if (typeof updateSecurityButton === 'function') {
+                        updateSecurityButton(data.note);
+                    }
+
+                    // Kích hoạt nút thêm tệp
+                    const btnAddAtt = document.getElementById('btn-add-attachment');
+                    if (btnAddAtt) btnAddAtt.classList.remove('opacity-50', 'pointer-events-none');
+
+                    // Hiện nút chia sẻ nếu là chủ sở hữu
+                    const btnShare = document.getElementById('btn-share-note');
+                    if (btnShare) btnShare.classList.remove('hidden');
+
+                    // Cập nhật mốc thời gian đồng bộ
+                    if (data.note.updated_at) {
+                        lastSyncTimestamp = data.note.updated_at;
+                    }
+
+                    // Kích hoạt đồng bộ thời gian thực cho ghi chú mới
+                    if (isNewNote && typeof startRealTimeSync === 'function') {
+                        startRealTimeSync(data.note.id);
+                    }
+
+                    if (saveStatus) saveStatus.innerText = '✓ Đã tự động lưu';
                 } else {
-                    saveStatus.innerText = 'Lưu thất bại';
+                    if (saveStatus) saveStatus.innerText = 'Lưu thất bại';
                 }
             } catch (err) {
-                console.error('Lỗi mạng:', err);
-                saveStatus.innerText = 'Lỗi kết nối';
+                console.error('Lỗi khi thực hiện autoSave:', err);
+                if (saveStatus) saveStatus.innerText = 'Lỗi kết nối';
             }
         }
 
@@ -1059,6 +1099,61 @@
                 loadNotes();
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        function startRealTimeSync(noteId) {
+            stopRealTimeSync();
+            if (!noteId) return;
+
+            // Kiểm tra cập nhật định kỳ mỗi 1.5 giây
+            realTimeSyncTimer = setInterval(async () => {
+                // Không ghi đè nếu người dùng hiện tại đang gõ
+                if (isUserTyping) return;
+
+                const currentModalNoteId = document.getElementById('editor-note-id').value;
+                if (!currentModalNoteId || currentModalNoteId != noteId) return;
+
+                try {
+                    const url = `/api/notes/${noteId}/check-sync?last_updated=${encodeURIComponent(lastSyncTimestamp || '')}`;
+                    const res = await fetch(url);
+                    if (!res.ok) return;
+
+                    const data = await res.json();
+                    if (data.has_update && data.note) {
+                        const titleField = document.getElementById('editor-title');
+                        const contentField = document.getElementById('editor-content');
+                        const status = document.getElementById('modal-auto-save-status');
+
+                        // Cập nhật giá trị mới nhất lên giao diện
+                        if (titleField.value !== data.note.title) {
+                            titleField.value = data.note.title;
+                        }
+                        if (contentField.value !== (data.note.content || '')) {
+                            contentField.value = data.note.content || '';
+                        }
+
+                        lastSyncTimestamp = data.note.updated_at;
+                        status.innerText = 'Vừa đồng bộ từ cộng tác viên';
+                        setTimeout(() => {
+                            if (status.innerText.includes('Vừa đồng bộ từ cộng tác viên')) status.innerText = '';
+                        }, 2500);
+
+                        // Cập nhật lại danh sách ngoài màn hình chính
+                        loadNotes();
+                    } else if (data.current_timestamp) {
+                        lastSyncTimestamp = data.current_timestamp;
+                    }
+                } catch (err) {
+                    console.error('Lỗi sync:', err);
+                }
+            }, 1500);
+        }
+
+        function stopRealTimeSync() {
+            if (realTimeSyncTimer) {
+                clearInterval(realTimeSyncTimer);
+                realTimeSyncTimer = null;
             }
         }
 

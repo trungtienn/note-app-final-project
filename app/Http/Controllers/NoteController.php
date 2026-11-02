@@ -331,4 +331,37 @@ class NoteController extends Controller
             'note' => $note->fresh(['labels', 'attachments']),
         ]);
     }
+
+    /**
+     * Kiểm tra và lấy nội dung cập nhật mới nhất từ cộng tác viên
+     */
+    public function checkSync(Request $request, Note $note): JsonResponse
+    {
+        $userId = Auth::id();
+
+        // Kiểm tra quyền: Chủ sở hữu hoặc người được chia sẻ
+        $isOwner = $note->user_id === $userId;
+        $isShared = $note->shares()->where('user_id', $userId)->exists();
+
+        if (!$isOwner && !$isShared) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $clientLastUpdated = $request->query('last_updated');
+        $serverUpdatedAt = $note->updated_at->toISOString();
+
+        // Nếu client chưa gửi mốc thời gian hoặc server có mốc cập nhật mới hơn
+        $hasUpdate = $clientLastUpdated && ($note->updated_at->timestamp > strtotime($clientLastUpdated));
+
+        return response()->json([
+            'has_update' => $hasUpdate,
+            'note' => $hasUpdate ? [
+                'id' => $note->id,
+                'title' => $note->title,
+                'content' => $note->content,
+                'updated_at' => $serverUpdatedAt,
+            ] : null,
+            'current_timestamp' => $serverUpdatedAt,
+        ]);
+    }
 }

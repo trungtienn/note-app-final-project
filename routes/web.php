@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/notes/{note}/shares', [ShareController::class, 'index'])->name('notes.shares.index');
     Route::post('/api/notes/{note}/share', [ShareController::class, 'share'])->name('notes.shares.store');
     Route::delete('/api/shares/{share}', [ShareController::class, 'revoke'])->name('notes.shares.revoke');
+    Route::get('/api/notes/{note}/check-sync', [NoteController::class, 'checkSync'])->name('notes.checkSync');
 });
 
 require __DIR__.'/auth.php';
