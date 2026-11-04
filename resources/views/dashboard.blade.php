@@ -303,17 +303,18 @@
             const emptyState = document.getElementById('empty-state');
             container.innerHTML = '';
 
-            if (allNotes.length === 0) {
-                emptyState.classList.remove('hidden');
-                return;
-            }
+                if (allNotes.length === 0) {
+                    emptyState.classList.remove('hidden');
+                    return;
+                }
             emptyState.classList.add('hidden');
 
             allNotes.forEach(note => {
                 const card = document.createElement('div');
                 const isList = currentView === 'list';
-                card.className = `p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition cursor-pointer flex ${isList ? 'justify-between items-center' : 'flex-col justify-between min-h-48'}`;
-                
+        
+                card.className = `p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition cursor-pointer flex ${isList ? 'justify-between items-center w-full' : 'flex-col justify-between min-h-48'}`;
+        
                 card.onclick = (e) => {
                     if (e.target.closest('button')) return;
                     if (note.has_password) {
@@ -339,15 +340,18 @@
                 }
 
                 card.innerHTML = `
-                    <div class="${isList ? 'flex-1 pr-4' : 'overflow-hidden'}">
-                        <div class="flex items-center gap-2 mb-1">
+                    <div class="overflow-hidden ${isList ? 'flex-1 min-w-0 pr-4' : ''}">
+                
+                        <div class="flex items-center gap-2 mb-1 min-w-0">
                             ${statusIcons}
-                            <h3 class="font-bold text-gray-900 dark:text-gray-100 truncate">${escapeHtml(note.title)}</h3>
-                        </div>
+                        <h3 class="font-bold text-gray-900 dark:text-gray-100 truncate flex-1 min-w-0">${escapeHtml(note.title)}</h3>
+                    </div>
+
                         ${labelsHtml}
                         <p class="text-sm text-gray-600 dark:text-gray-400 ${isList ? 'truncate' : 'line-clamp-3'}">${escapeHtml(note.content || 'Không có nội dung')}</p>
-                    </div>
-                    <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
+                        </div>
+            
+                    <div class="${isList ? 'flex flex-shrink-0 items-center gap-4 text-xs text-gray-400' : 'flex items-center justify-between mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400'}">
                         <span>${new Date(note.updated_at).toLocaleDateString('vi-VN')}</span>
                         <div class="flex items-center gap-2">
                             <button onclick="togglePinNote(${note.id})" title="${note.is_pinned ? 'Bỏ ghim' : 'Ghim lên đầu'}" class="p-1 hover:text-amber-500">
